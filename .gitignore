@@ -1,4 +1,8 @@
 COMPORT.inc
+__C51.bat
 *.obj
 *.hex
 *.map
+*.asm
+*.lkr
+*.lst
