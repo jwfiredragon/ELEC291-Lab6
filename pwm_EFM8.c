@@ -5,6 +5,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
 #include <EFM8LB1.h>
 
 // ~C51~  
@@ -14,6 +16,8 @@
 
 #define OUT0 P2_0
 #define OUT1 P2_1
+#define POW1 P2_2
+#define POW2 P1_7
 
 volatile unsigned char pwm_count=0;
 
@@ -107,13 +111,103 @@ void Timer2_ISR (void) interrupt 5
 	OUT1=pwm_count>75?0:1;
 }
 
+int getsn (char * buff, int len)
+{
+	int j;
+	char c;
+	
+	for(j=0; j<(len-1); j++)
+	{
+		c=getchar();
+		if ( (c=='\n') || (c=='\r') )
+		{
+			buff[j]=0;
+			return j;
+		}
+		else
+		{
+			buff[j]=c;
+		}
+	}
+	buff[j]=0;
+	return len;
+}
+
+// Raises x to the power of y
+// Because apparently this doesn't exist in math.h
+// Does not work for negative y because I am lazy
+int pow_(int x, int y)
+{
+	int temp = x;
+	if (y < 0) return 0;
+	if (y == 0) return 1;
+	while(y > 1)
+	{
+		temp *= x;
+		y--;
+	}
+	return temp;
+}
+
+// Parses string into positive integer between 0 and 100
+// Returns integer parsed or -1 on fail
+int parse_input (char * input)
+{
+	int length = strlen(input);
+	int val = 0;
+	int temp;
+	int i = 0;
+
+	// Failure if input is null
+	if(input == NULL) return -1;
+
+	// Loop through each character in string
+	while(input[i] != '\0')
+	{
+		// Check if character is a number
+		temp = input[i] - '0';
+		if((temp >= 0) && (temp <= 9))
+		{
+			// Value of current char is temp*10^(length-i-1), add that to return value
+			val += temp * pow_(10, length - i - 1);
+		}
+		else return -1;
+		i++;
+	}
+
+	// Failure if value is not between 0 and 100
+	if((val < 0) || (val > 100)) return -1;
+
+	return val;
+}
+
 void main (void)
 {
+	char buff[17];
+	char *str1, *str2;
+	int pwm1, pwm2;
+
 	printf("\x1b[2J"); // Clear screen using ANSI escape sequence.
-	printf("Square wave generator for the EFM8LB1.\r\n"
-	       "Check pins P2.0 and P2.1 with the oscilloscope.\r\n");
+	printf("\x1b[;f"); // Reset cursor position
+	printf("Welcome to program\r\n");
+
+	// Set two power supply pins to always on
+	POW1=1;
+	POW2=1;
 
 	while(1)
 	{
+		//printf("\x1b[0K"); // ANSI: Clear from cursor to end of line.
+		printf("\r\nEnter two integers between 0 and 100, separated by a space: ");
+		getsn(buff, sizeof(buff));
+
+		// Try to extract two integers from input
+		str1 = strtok(buff, " ");
+		str2 = strtok(NULL, " ");
+		pwm1 = parse_input(str1);
+		pwm2 = parse_input(str2);
+
+		if((pwm1 == -1) || (pwm2 == -1)) printf("\r\nInvalid input, please try again.");
+		else printf("\r\nReceived: %d, %d", pwm1, pwm2);
 	}
 }
