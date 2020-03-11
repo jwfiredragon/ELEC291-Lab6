@@ -20,6 +20,8 @@
 #define POW2 P1_7
 
 volatile unsigned char pwm_count=0;
+int pwm1 = 0;
+int pwm2 = 0;
 
 char _c51_external_startup (void)
 {
@@ -107,8 +109,8 @@ void Timer2_ISR (void) interrupt 5
 	pwm_count++;
 	if(pwm_count>100) pwm_count=0;
 	
-	OUT0=pwm_count>50?0:1;
-	OUT1=pwm_count>75?0:1;
+	OUT0=pwm_count>pwm1?0:1;
+	OUT1=pwm_count>pwm2?0:1;
 }
 
 int getsn (char * buff, int len)
@@ -150,7 +152,7 @@ int pow_(int x, int y)
 }
 
 // Parses string into positive integer between 0 and 100
-// Returns integer parsed or -1 on fail
+// Returns integer parsed or negative number (error code) on fail
 int parse_input (char * input)
 {
 	int length = strlen(input);
@@ -176,29 +178,29 @@ int parse_input (char * input)
 	}
 
 	// Failure if value is not between 0 and 100
-	if((val < 0) || (val > 100)) return -1;
+	if((val < 0) || (val > 100)) return -2;
 
 	return val;
 }
 
 void main (void)
 {
-	char buff[17];
+	char buff[33];
 	char *str1, *str2;
-	int pwm1, pwm2;
-
-	printf("\x1b[2J"); // Clear screen using ANSI escape sequence.
-	printf("\x1b[;f"); // Reset cursor position
-	printf("Welcome to program\r\n");
+	bool input_valid;
 
 	// Set two power supply pins to always on
 	POW1=1;
 	POW2=1;
 
+	printf("\x1b[2J"); // Clear screen using ANSI escape sequence.
+	printf("\x1b[;f"); // Reset cursor position
+
 	while(1)
 	{
-		//printf("\x1b[0K"); // ANSI: Clear from cursor to end of line.
-		printf("\r\nEnter two integers between 0 and 100, separated by a space: ");
+		printf("Enter two integers between 0 and 100, separated by a space.\r\n"
+				"The first number drives pin 2.0, the second number drives pin 2.1.\r\n"
+				"Do not attempt to correct your mistakes with backspace.\r\n");
 		getsn(buff, sizeof(buff));
 
 		// Try to extract two integers from input
@@ -207,7 +209,21 @@ void main (void)
 		pwm1 = parse_input(str1);
 		pwm2 = parse_input(str2);
 
-		if((pwm1 == -1) || (pwm2 == -1)) printf("\r\nInvalid input, please try again.");
-		else printf("\r\nReceived: %d, %d", pwm1, pwm2);
+		input_valid = true;
+		if((pwm1 == -1) || (pwm2 == -1)) {
+			printf("\r\nInvalid input: Wrong format or not integers");
+			input_valid = false;
+		}
+		if((pwm1 == -2) || (pwm2 == -2))
+		{
+			printf("\r\nInvalid input: Numbers outside range");
+			input_valid = false;
+		}
+		if(input_valid) printf("\r\nSuccessfully received: %d, %d", pwm1, pwm2);
+
+		printf("\r\nPress Enter to continue...");
+		getsn(buff, sizeof(buff));
+		printf("\x1b[2J"); // Clear screen using ANSI escape sequence.
+		printf("\x1b[;f"); // Reset cursor position
 	}
 }
