@@ -16,12 +16,12 @@
 
 #define OUT0 P2_0
 #define OUT1 P2_1
-#define POW1 P2_2
-#define POW2 P1_7
 
 volatile unsigned char pwm_count=0;
 int pwm1 = 0;
 int pwm2 = 0;
+int direction = 0;
+int power = 0;
 
 char _c51_external_startup (void)
 {
@@ -108,6 +108,17 @@ void Timer2_ISR (void) interrupt 5
 	
 	pwm_count++;
 	if(pwm_count>100) pwm_count=0;
+
+	if(direction == 1)
+	{
+		pwm1 = power;
+		pwm2 = 0;
+	}
+	else
+	{
+		pwm1 = 0;
+		pwm2 = power;
+	}
 	
 	OUT0=pwm_count>pwm1?0:1;
 	OUT1=pwm_count>pwm2?0:1;
@@ -135,8 +146,7 @@ int getsn (char * buff, int len)
 	return len;
 }
 
-// Raises x to the power of y
-// Because apparently this doesn't exist in math.h
+// Raises x to the power of y (apparently this doesn't exist in math.h)
 // Does not work for negative y because I am lazy
 int pow_(int x, int y)
 {
@@ -151,9 +161,9 @@ int pow_(int x, int y)
 	return temp;
 }
 
-// Parses string into positive integer between 0 and 100
-// Returns integer parsed or negative number (error code) on fail
-int parse_input (char * input)
+// Parses string into positive integer between min and max
+// Returns integer parsed or -1 on fail
+int parse_input (char * input, int min, int max)
 {
 	int length = strlen(input);
 	int val = 0;
@@ -173,12 +183,20 @@ int parse_input (char * input)
 			// Value of current char is temp*10^(length-i-1), add that to return value
 			val += temp * pow_(10, length - i - 1);
 		}
-		else return -1;
+		else 
+		{
+			printf("\r\nInvalid input: Wrong format or not integers");
+			return -1;
+		}
 		i++;
 	}
 
-	// Failure if value is not between 0 and 100
-	if((val < 0) || (val > 100)) return -2;
+	// Failure if value is not between min and max
+	if((val < min) || (val > max))
+	{
+		printf("\r\nInvalid input: Numbers outside range");
+		return -1;
+	}
 
 	return val;
 }
@@ -186,40 +204,31 @@ int parse_input (char * input)
 void main (void)
 {
 	char buff[33];
-	char *str1, *str2;
-	bool input_valid;
-
-	// Set two power supply pins to always on
-	POW1=1;
-	POW2=1;
+	int temp_direction = 0;
+	int temp_power = 0;
 
 	printf("\x1b[2J"); // Clear screen using ANSI escape sequence.
 	printf("\x1b[;f"); // Reset cursor position
 
 	while(1)
 	{
-		printf("Enter two integers between 0 and 100, separated by a space.\r\n"
-				"The first number drives pin 2.0, the second number drives pin 2.1.\r\n"
-				"Do not attempt to correct your mistakes with backspace.\r\n");
+		// Get direction from user and parse
+		printf("Enter 0 to turn clockwise, 1 to turn counterclockwise: ");
 		getsn(buff, sizeof(buff));
+		temp_direction = parse_input(buff, 0, 1);
 
-		// Try to extract two integers from input
-		str1 = strtok(buff, " ");
-		str2 = strtok(NULL, " ");
-		pwm1 = parse_input(str1);
-		pwm2 = parse_input(str2);
+		// Get power from user and parse
+		printf("\r\nEnter power from 0 to 100: ");
+		getsn(buff, sizeof(buff));
+		temp_power = parse_input(buff, 0, 100);
 
-		input_valid = true;
-		if((pwm1 == -1) || (pwm2 == -1)) {
-			printf("\r\nInvalid input: Wrong format or not integers");
-			input_valid = false;
-		}
-		if((pwm1 == -2) || (pwm2 == -2))
+		if((temp_direction != -1) && (temp_power != -1))
 		{
-			printf("\r\nInvalid input: Numbers outside range");
-			input_valid = false;
+			printf("\r\nSuccessfully received: %s, %d%% power", temp_direction?"counterclockwise":"clockwise", temp_power);
+			direction = temp_direction;
+			power = temp_power;
 		}
-		if(input_valid) printf("\r\nSuccessfully received: %d, %d", pwm1, pwm2);
+		else printf("\r\nFailure, one or more errors detected.");
 
 		printf("\r\nPress Enter to continue...");
 		getsn(buff, sizeof(buff));
